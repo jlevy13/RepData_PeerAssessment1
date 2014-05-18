@@ -1,20 +1,134 @@
-# Reproducible Research: Peer Assessment 1
+Peer Assessment 1 - Joseph Levy
+===============================
+
+This is the first peer review assignment in the Reproducible Reseach course. 
+
+It analyzes data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+The first code chunk reads the data into an R object, assuming the file is in the current working directory. We also need to take care of the missing values. For now, I will just drop them from the data.
+
+```{r}
+ac<-read.csv("activity.csv",na.strings = "NA")
+ac_nomiss<-subset(ac,ac$steps!="NA") 
+```
+
+Now I will sum the number of steps for each day:
+```{r}
+ac_day<-aggregate(. ~ date, data=ac_nomiss, FUN=sum)
+# remove interval
+ac_day<-ac_day[c(-3)]
+names(ac_day) <- c("date","Total_stpes_in_date")
+```
+
+Using the hist function, we can draw a histogram of of the total number of steps taken each day:
+```{r}
+hist(ac_day[,2], breaks=25,
+     main="Distribution of number of steps per day", 
+     xlab="Number of steps per day (ignoring missing data)",
+     xlim=c(0,25000),
+     ylim=c(0,20)
+    )
+```
+We would also like to report mean and median total number of steps taken per day. Let's do it:
+
+```{r}
+daysteps_mean<-mean(ac_day[,2])
+daysteps_median<-median(ac_day[,2])
+```
+The mean total number of steps taken per day is `r format(daysteps_mean, scientific=FALSE)`, and the median is `r format(daysteps_median, scientific=FALSE)`.
+
+Now we will explore the average daily activity pattern.
+
+To do that, we first calculate the mean number of steps (accross days) for every time interval (and, again, using only non-missing data):
+
+```{r}
+ac_int<-aggregate(. ~ interval, data=ac_nomiss, FUN=mean)
+ac_int<-ac_int[c(-3)]
+names(ac_int) <- c("interval","Mean_stpes_per_interval")
+```
+Here is a time series plot:
+```{r}
+plot(ac_int[,1], ac_int[,2], 
+     type="l",
+     main="Mean number of steps during the day",
+     xlab="Time interval",
+     ylab="Number of steps",
+     )
+```
+```{r}
+# claculate the max number of steps in time interval
+argmaxsteps<-ac_int[which(ac_int[,2]==max(ac_int[,2])),1]
+maxsteps<-max(ac_int[,2])
+```
+On average across all the days in the dataset, the time interval that contains the maximum number of steps is `r argmaxsteps`. The mean number os steps on this time interval is `r maxsteps`.
 
 
-## Loading and preprocessing the data
+
+Missing values:
+I will impute each missing value of step count by the mean number of step counts in the respective time interval. The dataset ac_imp is equal to the original dataset, ac,  but with the missing data filled in:
+
+```{r}
+ac_imp <- merge(ac, ac_int , by = "interval") 
+for(i in 1:nrow(ac_imp))
+  
+  if (is.na(ac_imp[i,2])){ 
+    ac_imp[i,2]<-ac_imp[i,4] 
+  } 
+ac_imp<-ac_imp[c(-4)] 
+```
+Here is a histogram of the total number of steps taken each day, this time using the imputed data (I am repeating the steps done before):
+```{r}
+ac_day_imp<-aggregate(. ~ date, data=ac_imp, FUN=sum)
+# remove interval
+ac_day_imp<-ac_day_imp[c(-2)]
+names(ac_day_imp) <- c("date","Total_stpes_in_date")
+
+hist(ac_day_imp[,2], breaks=25,
+     main="Distribution of number of steps per day", 
+     xlab="Number of steps per day (imputed data)",
+     xlim=c(0,25000),
+     ylim=c(0,20)
+    )
+```
+```{r}
+daysteps_mean_imp<-mean(ac_day_imp[,2])
+daysteps_median_imp<-median(ac_day_imp[,2])
+```
+The mean total number of steps taken per day in the imputed data is `r format(daysteps_mean_imp, scientific=FALSE)`, and the median is `r format(daysteps_median_imp, scientific=FALSE)`.
+
+Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+# add weekdays to imputed data
+# Note that 0 is Sunday, ..., 6 is Saturday
+ac_imp_int <- ac_imp
+ac_imp_int$weekday <- as.numeric(format(as.Date(ac_imp_int$date), format="%w"))
 
 
+for (i in 1:nrow(ac_imp_int)) {
+  ifelse(ac_imp_int[i,4]==0 | ac_imp_int[i,4]==6,  
+         ac_imp_int[i,5]<-"Weekends",  
+         ac_imp_int[i,5]<-"Weekdays")
+}
+names(ac_imp_int) <- c("interval","steps","date", "weekday","daytype")
 
-## What is mean total number of steps taken per day?
+#Average over daytype and time intervals
+ac_int_week<-aggregate(. ~ interval*daytype, data=ac_imp_int, FUN=mean)
+```
 
+Here is a two panel time series plot of the mean number of steps for each ti,e interval, factored by weekdays and weekends. 
 
+```{r}
+# generate 2 time series plots in panel
+# install.packages("lattice")
+library(lattice)
 
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+xyplot(ac_int_week$steps ~ ac_int_week$interval | ac_int_week$daytype,   
+       type="l",  
+       layout = c(1,2),  
+       main="Mean number of steps during the day",
+       xlab="Time interval",
+       ylab="Number of steps",
+     
+       )
+```
